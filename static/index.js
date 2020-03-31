@@ -4659,6 +4659,183 @@ OF ANY KIND, either express or implied. See the License for the specific languag
 governing permissions and limitations under the License.
 */
 const styles$e = css `
+:host{box-sizing:border-box;margin:var(--spectrum-popover-padding-y,var(--spectrum-global-dimension-size-50)) 0;padding:0;list-style-type:none;overflow:auto;display:block;background-color:var(--spectrum-selectlist-background-color,var(--spectrum-alias-background-color-transparent));display:inline-block}:host sp-menu{display:block}
+`;
+
+/*
+Copyright 2019 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+/**
+ * Spectrum Menu Component
+ * @element sp-menu
+ *
+ */
+class Menu extends LitElement {
+    constructor() {
+        super();
+        this.menuItems = [];
+        this.focusedItemIndex = 0;
+        this.focusInItemIndex = 0;
+        this.handleKeydown = this.handleKeydown.bind(this);
+        this.startListeningToKeyboard = this.startListeningToKeyboard.bind(this);
+        this.stopListeningToKeyboard = this.stopListeningToKeyboard.bind(this);
+        this.onClick = this.onClick.bind(this);
+        this.addEventListener('click', this.onClick);
+        this.addEventListener('focusin', this.startListeningToKeyboard);
+        this.addEventListener('focusout', this.stopListeningToKeyboard);
+    }
+    static get styles() {
+        return [styles$e];
+    }
+    get childRole() {
+        return this.getAttribute('role') === 'menu' ? 'menuitem' : 'option';
+    }
+    focus() {
+        if (this.menuItems.length === 0) {
+            return;
+        }
+        const focusInItem = this.menuItems[this.focusInItemIndex];
+        this.focusedItemIndex = this.focusInItemIndex;
+        focusInItem.focus();
+    }
+    onClick(event) {
+        const path = event.composedPath();
+        const target = path.find((el) => {
+            if (!(el instanceof Element)) {
+                return false;
+            }
+            return el.getAttribute('role') === this.childRole;
+        });
+        if (!target) {
+            return;
+        }
+        this.prepareToCleanUp();
+    }
+    startListeningToKeyboard() {
+        if (this.menuItems.length === 0) {
+            return;
+        }
+        this.addEventListener('keydown', this.handleKeydown);
+    }
+    stopListeningToKeyboard() {
+        this.removeEventListener('keydown', this.handleKeydown);
+    }
+    handleKeydown(event) {
+        const { code } = event;
+        if (code === 'Tab') {
+            this.prepareToCleanUp();
+            return;
+        }
+        if (code !== 'ArrowDown' && code !== 'ArrowUp') {
+            return;
+        }
+        event.preventDefault();
+        const direction = code === 'ArrowDown' ? 1 : -1;
+        this.focusMenuItemByOffset(direction);
+    }
+    focusMenuItemByOffset(offset) {
+        const focusedItem = this.menuItems[this.focusedItemIndex];
+        this.focusedItemIndex =
+            (this.menuItems.length + this.focusedItemIndex + offset) %
+                this.menuItems.length;
+        let itemToFocus = this.menuItems[this.focusedItemIndex];
+        while (itemToFocus.disabled) {
+            this.focusedItemIndex =
+                (this.menuItems.length + this.focusedItemIndex + offset) %
+                    this.menuItems.length;
+            itemToFocus = this.menuItems[this.focusedItemIndex];
+        }
+        itemToFocus.focus();
+        focusedItem.tabIndex = -1;
+    }
+    prepareToCleanUp() {
+        document.addEventListener('focusout', () => {
+            requestAnimationFrame(() => {
+                if (this.querySelector('[selected]')) {
+                    const itemToBlur = this.menuItems[this.focusInItemIndex];
+                    itemToBlur.tabIndex = -1;
+                }
+                this.updateSelectedItemIndex();
+                const itemToFocus = this.menuItems[this.focusInItemIndex];
+                itemToFocus.tabIndex = 0;
+            });
+        }, { once: true });
+    }
+    updateSelectedItemIndex() {
+        let index = this.menuItems.length - 1;
+        let item = this.menuItems[index];
+        while (index && item && !item.selected) {
+            index -= 1;
+            item = this.menuItems[index];
+        }
+        this.focusedItemIndex = index;
+        this.focusInItemIndex = index;
+    }
+    handleSlotchange() {
+        this.menuItems = [
+            ...this.querySelectorAll(`[role="${this.childRole}"]`),
+        ];
+        if (!this.menuItems || this.menuItems.length === 0) {
+            return;
+        }
+        this.updateSelectedItemIndex();
+        const focusInItem = this.menuItems[this.focusInItemIndex];
+        focusInItem.tabIndex = 0;
+    }
+    render() {
+        return html `
+            <slot @slotchange=${this.handleSlotchange}></slot>
+        `;
+    }
+    connectedCallback() {
+        super.connectedCallback();
+        if (!this.hasAttribute('role')) {
+            const queryRoleEvent = new CustomEvent('sp-menu-query-role', {
+                bubbles: true,
+                composed: true,
+                detail: {
+                    role: '',
+                },
+            });
+            this.dispatchEvent(queryRoleEvent);
+            this.setAttribute('role', queryRoleEvent.detail.role || 'menu');
+        }
+    }
+}
+
+/*
+Copyright 2019 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+customElements.define('sp-menu', Menu);
+
+/*
+Copyright 2019 Adobe. All rights reserved.
+This file is licensed to you under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License. You may obtain a copy
+of the License at http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software distributed under
+the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
+OF ANY KIND, either express or implied. See the License for the specific language
+governing permissions and limitations under the License.
+*/
+const styles$f = css `
 :host{position:relative;display:inline-block;max-width:100%;width:var(--spectrum-global-dimension-size-2400);min-width:var(--spectrum-dropdown-min-width,var(--spectrum-global-dimension-size-600))}select{-webkit-appearance:none;-moz-appearance:none;appearance:none;-ms-appearance:none}select::-ms-expand{display:none}select::-ms-value{background-color:initial}select+.dropdown{position:absolute;right:var(--spectrum-dropdown-padding-x,var(--spectrum-global-dimension-size-150));top:50%;margin-top:calc(var(--spectrum-icon-chevron-down-medium-height,
 var(--spectrum-global-dimension-size-75))/-2)}#button{position:relative;width:100%;display:flex;justify-content:space-between;align-items:center}#label{flex:1 1 auto;white-space:nowrap;overflow:hidden;height:calc(var(--spectrum-dropdown-height,
 var(--spectrum-global-dimension-size-400)) - var(--spectrum-dropdown-border-size,
@@ -4692,7 +4869,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$f = css `
+const styles$g = css `
 #button{position:relative;display:inline-flex;box-sizing:border-box;align-items:center;justify-content:center;overflow:visible;border-style:solid;text-transform:none;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;-webkit-appearance:button;vertical-align:top;transition:background var(--spectrum-global-animation-duration-100,.13s) ease-out,border-color var(--spectrum-global-animation-duration-100,.13s) ease-out,color var(--spectrum-global-animation-duration-100,.13s) ease-out,box-shadow var(--spectrum-global-animation-duration-100,.13s) ease-out;text-decoration:none;font-family:var(--spectrum-alias-body-text-font-family,var(--spectrum-global-font-family-base));line-height:1.3;height:var(--spectrum-dropdown-height,var(--spectrum-global-dimension-size-400));font-family:inherit;font-weight:400;font-size:var(--spectrum-dropdown-text-size,var(--spectrum-alias-font-size-default));line-height:normal;-webkit-font-smoothing:initial;cursor:pointer;margin:0;padding:0 var(--spectrum-dropdown-padding-x,var(--spectrum-global-dimension-size-150));border-radius:var(--spectrum-global-dimension-size-50);transition:background-color var(--spectrum-global-animation-duration-100,.13s),box-shadow var(--spectrum-global-animation-duration-100,.13s),border-color var(--spectrum-global-animation-duration-100,.13s);color:var(--spectrum-fieldbutton-text-color,var(--spectrum-alias-text-color));background-color:var(--spectrum-fieldbutton-background-color,var(--spectrum-global-color-gray-75));border:var(--spectrum-dropdown-border-size,var(--spectrum-alias-border-size-thin)) solid var(--spectrum-fieldbutton-border-color,var(--spectrum-global-color-gray-300))}#button,#button:focus{outline:none}#button::-moz-focus-inner{border:0;border-style:none;padding:0;margin-top:-2px;margin-bottom:-2px}#button:disabled{cursor:default}.icon{max-height:100%;flex-shrink:0}#button.is-disabled,#button:disabled{border-width:0;cursor:default}#button.is-open{border-width:var(--spectrum-dropdown-border-size,var(--spectrum-alias-border-size-thin))}:host([quiet]) #button{margin:0;padding:0;border-width:0;border-radius:var(--spectrum-fieldbutton-quiet-border-radius,0);color:var(--spectrum-fieldbutton-text-color,var(--spectrum-alias-text-color));border-color:var(--spectrum-fieldbutton-quiet-border-color,var(--spectrum-alias-border-color-transparent));background-color:var(--spectrum-fieldbutton-quiet-background-color,var(--spectrum-alias-background-color-transparent))}:host([quiet]) #button.is-disabled.focus-visible,:host([quiet]) #button:disabled.focus-visible{box-shadow:none}#button:hover{color:var(--spectrum-fieldbutton-text-color-hover,var(--spectrum-alias-text-color-hover));background-color:var(--spectrum-fieldbutton-background-color-hover,var(--spectrum-global-color-gray-50));border-color:var(--spectrum-fieldbutton-border-color-hover,var(--spectrum-global-color-gray-400))}#button.is-selected,#button:active{background-color:var(--spectrum-fieldbutton-background-color-down,var(--spectrum-global-color-gray-200));border-color:var(--spectrum-fieldbutton-border-color-down,var(--spectrum-global-color-gray-400))}#button.focus-visible,#button.is-focused{background-color:var(--spectrum-fieldbutton-background-color-key-focus,var(--spectrum-global-color-gray-50));border-color:var(--spectrum-fieldbutton-border-color-key-focus,var(--spectrum-alias-border-color-focus));box-shadow:0 0 0 var(--spectrum-button-primary-border-size-increase-key-focus,1px) var(--spectrum-fieldbutton-border-color-key-focus,var(--spectrum-alias-border-color-focus));color:var(--spectrum-fieldbutton-text-color-key-focus,var(--spectrum-alias-text-color-hover))}#button.focus-visible.is-placeholder,#button.is-focused.is-placeholder{color:var(--spectrum-fieldbutton-placeholder-text-color-key-focus,var(--spectrum-alias-placeholder-text-color-hover))}:host([invalid]) #button{border-color:var(--spectrum-fieldbutton-border-color-error,var(--spectrum-global-color-red-500))}:host([invalid]) #button:hover{border-color:var(--spectrum-fieldbutton-border-color-error-hover,var(--spectrum-global-color-red-600))}:host([invalid]) #button.is-selected,:host([invalid]) #button:active{border-color:var(--spectrum-fieldbutton-border-color-error-down,var(--spectrum-global-color-red-600))}:host([invalid]) #button.focus-visible,:host([invalid]) #button.is-focused{border-color:var(--spectrum-fieldbutton-border-color-error-key-focus,var(--spectrum-alias-border-color-focus));box-shadow:0 0 0 var(--spectrum-button-primary-border-size-increase-key-focus,1px) var(--spectrum-fieldbutton-border-color-error-key-focus,var(--spectrum-alias-border-color-focus))}#button.is-disabled,#button:disabled{background-color:var(--spectrum-fieldbutton-background-color-disabled,var(--spectrum-global-color-gray-200));color:var(--spectrum-fieldbutton-text-color-disabled,var(--spectrum-alias-text-color-disabled))}#button.is-disabled .icon,#button:disabled .icon{color:var(--spectrum-fieldbutton-icon-color-disabled,var(--spectrum-alias-icon-color-disabled))}:host([quiet]) #button:hover{background-color:var(--spectrum-fieldbutton-quiet-background-color-hover,var(--spectrum-alias-background-color-transparent));color:var(--spectrum-fieldbutton-text-color-hover,var(--spectrum-alias-text-color-hover))}:host([quiet]) #button.focus-visible,:host([quiet]) #button.is-focused{background-color:var(--spectrum-fieldbutton-quiet-background-color-key-focus,var(--spectrum-alias-background-color-transparent));box-shadow:0 2px 0 0 var(--spectrum-fieldbutton-border-color-key-focus,var(--spectrum-alias-border-color-focus))}:host([quiet]) #button.focus-visible.is-placeholder,:host([quiet]) #button.is-focused.is-placeholder{color:var(--spectrum-fieldbutton-quiet-placeholder-text-color-key-focus,var(--spectrum-alias-placeholder-text-color-hover))}:host([quiet]) #button.is-selected,:host([quiet]) #button:active{background-color:var(--spectrum-fieldbutton-quiet-background-color-down,var(--spectrum-alias-background-color-transparent));border-color:var(--spectrum-fieldbutton-quiet-border-color-down,var(--spectrum-alias-border-color-transparent))}:host([quiet]) #button.is-selected.focus-visible,:host([quiet]) #button.is-selected.is-focused,:host([quiet]) #button:active.focus-visible,:host([quiet]) #button:active.is-focused{background-color:var(--spectrum-fieldbutton-quiet-background-color-key-focus,var(--spectrum-alias-background-color-transparent));box-shadow:0 2px 0 0 var(--spectrum-fieldbutton-border-color-key-focus,var(--spectrum-alias-border-color-focus))}:host([quiet][invalid]) #button.focus-visible,:host([quiet][invalid]) #button.is-focused{box-shadow:0 2px 0 0 var(--spectrum-fieldbutton-border-color-error-key-focus,var(--spectrum-alias-border-color-focus))}:host([quiet]) #button.is-disabled,:host([quiet]) #button:disabled{background-color:var(--spectrum-fieldbutton-quiet-background-color-disabled,var(--spectrum-alias-background-color-transparent));color:var(--spectrum-fieldbutton-text-color-disabled,var(--spectrum-alias-text-color-disabled))}
 `;
 
@@ -4707,7 +4884,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$g = css `
+const styles$h = css `
 .chevron-down-medium{width:var(--spectrum-icon-chevron-down-medium-width);height:var(--spectrum-icon-chevron-down-medium-height,var(--spectrum-global-dimension-size-75))}
 `;
 
@@ -4722,7 +4899,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$h = css `
+const styles$i = css `
 #selected{transform:scale(1);opacity:1;display:none;align-self:flex-start;flex-grow:0;margin-left:var(--spectrum-selectlist-option-icon-padding-x,var(--spectrum-global-dimension-size-150));margin-top:var(--spectrum-global-dimension-size-50)}#button{cursor:pointer;position:relative;display:flex;align-items:center;box-sizing:border-box;padding:var(--spectrum-global-dimension-size-85) var(--spectrum-selectlist-option-padding,var(--spectrum-global-dimension-static-size-150)) var(--spectrum-global-dimension-size-85) calc(var(--spectrum-selectlist-option-padding,
 var(--spectrum-global-dimension-static-size-150)) - var(--spectrum-selectlist-border-size-key-focus,
 var(--spectrum-global-dimension-static-size-25)));margin:0;border-left:var(--spectrum-selectlist-border-size-key-focus,var(--spectrum-global-dimension-static-size-25)) solid transparent;min-height:var(--spectrum-selectlist-option-height);font-size:var(--spectrum-selectlist-option-text-size,var(--spectrum-alias-font-size-default));font-weight:var(--spectrum-selectlist-option-text-font-weight,var(--spectrum-global-font-weight-regular));font-style:normal;text-decoration:none;background-color:var(--spectrum-selectlist-option-background-color,var(--spectrum-alias-background-color-transparent));color:var(--spectrum-selectlist-option-text-color,var(--spectrum-alias-text-color))}#button:focus{outline:none}:host([selected]) #button{padding-right:calc(var(--spectrum-selectlist-option-padding,
@@ -4745,7 +4922,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$i = css `
+const styles$j = css `
 .checkmark-medium{width:var(--spectrum-icon-checkmark-medium-width);height:var(--spectrum-icon-checkmark-medium-height)}
 `;
 
@@ -4771,7 +4948,7 @@ class MenuItem extends ActionButton {
         this._value = '';
     }
     static get styles() {
-        return [styles, styles$h, styles$i];
+        return [styles, styles$i, styles$j];
     }
     get value() {
         return this._value || this.itemText;
@@ -4840,7 +5017,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$j = css `
+const styles$k = css `
 :host{box-sizing:initial;overflow:visible;height:var(--spectrum-selectlist-divider-size,var(--spectrum-alias-border-size-thick));margin:calc(var(--spectrum-selectlist-divider-padding, 3px)/2) var(--spectrum-selectlist-option-padding,var(--spectrum-global-dimension-static-size-150));padding:0;border:none;background-color:var(--spectrum-selectlist-divider-color,var(--spectrum-alias-border-color-extralight));display:block}
 `;
 
@@ -4862,7 +5039,7 @@ governing permissions and limitations under the License.
  */
 class MenuDivider extends LitElement {
     static get styles() {
-        return [styles$j];
+        return [styles$k];
     }
     firstUpdated() {
         this.setAttribute('role', 'separator');
@@ -4894,7 +5071,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$k = css `
+const styles$l = css `
 :host{visibility:hidden;opacity:0;transition:transform var(--spectrum-global-animation-duration-100,.13s) ease-in-out,opacity var(--spectrum-global-animation-duration-100,.13s) ease-in-out,visibility 0ms linear var(--spectrum-global-animation-duration-100,.13s);pointer-events:none;display:inline-flex;flex-direction:column;box-sizing:border-box;min-width:var(--spectrum-global-dimension-size-400);min-height:var(--spectrum-global-dimension-size-400);position:absolute;border-radius:var(--spectrum-popover-border-radius,var(--spectrum-alias-border-radius-regular));outline:none;background-color:var(--spectrum-popover-background-color,var(--spectrum-global-color-gray-50));border:var(--spectrum-popover-border-size,var(--spectrum-alias-border-size-thin)) solid var(--spectrum-popover-border-color,var(--spectrum-alias-border-color-dark));box-shadow:0 1px 4px var(--spectrum-popover-shadow-color,var(--spectrum-alias-dropshadow-color))}:host([open]){visibility:visible;opacity:1;transition-delay:0ms;pointer-events:auto}:host([placement*=bottom][open]){transform:translateY(var(--spectrum-dropdown-flyout-menu-offset-y,var(--spectrum-global-dimension-size-75)))}:host([placement*=top][open]){transform:translateY(calc(-1*var(--spectrum-dropdown-flyout-menu-offset-y, var(--spectrum-global-dimension-size-75))))}:host([placement*=right][open]){transform:translateX(var(--spectrum-dropdown-flyout-menu-offset-y,var(--spectrum-global-dimension-size-75)))}:host([placement*=left][open]){transform:translateX(calc(-1*var(--spectrum-dropdown-flyout-menu-offset-y, var(--spectrum-global-dimension-size-75))))}#tip{overflow:hidden;width:calc(var(--spectrum-popover-tip-width,
 var(--spectrum-global-dimension-size-250)) + 1px);height:calc(var(--spectrum-popover-tip-width,
 var(--spectrum-global-dimension-size-250))/2 + var(--spectrum-popover-border-size,
@@ -4923,7 +5100,7 @@ class Popover extends LitElement {
         this.tip = false;
     }
     static get styles() {
-        return [styles$k];
+        return [styles$l];
     }
     renderTip() {
         return html `
@@ -4992,7 +5169,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$l = css `
+const styles$m = css `
 :host([disabled]) #trigger{pointer-events:none}#overlay-content{display:none}
 `;
 
@@ -5314,103 +5491,6 @@ function debounce(fn) {
   };
 }
 
-function format(str) {
-  for (var _len = arguments.length, args = new Array(_len > 1 ? _len - 1 : 0), _key = 1; _key < _len; _key++) {
-    args[_key - 1] = arguments[_key];
-  }
-
-  return [].concat(args).reduce(function (p, c) {
-    return p.replace(/%s/, c);
-  }, str);
-}
-
-var INVALID_MODIFIER_ERROR = 'Popper: modifier "%s" provided an invalid %s property, expected %s but got %s';
-var MISSING_DEPENDENCY_ERROR = 'Popper: modifier "%s" requires "%s", but "%s" modifier is not available';
-var VALID_PROPERTIES = ['name', 'enabled', 'phase', 'fn', 'effect', 'requires', 'options'];
-function validateModifiers(modifiers) {
-  modifiers.forEach(function (modifier) {
-    Object.keys(modifier).forEach(function (key) {
-      switch (key) {
-        case 'name':
-          if (typeof modifier.name !== 'string') {
-            console.error(format(INVALID_MODIFIER_ERROR, String(modifier.name), '"name"', '"string"', "\"" + String(modifier.name) + "\""));
-          }
-
-          break;
-
-        case 'enabled':
-          if (typeof modifier.enabled !== 'boolean') {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"enabled"', '"boolean"', "\"" + String(modifier.enabled) + "\""));
-          }
-
-        case 'phase':
-          if (modifierPhases.indexOf(modifier.phase) < 0) {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"phase"', "either " + modifierPhases.join(', '), "\"" + String(modifier.phase) + "\""));
-          }
-
-          break;
-
-        case 'fn':
-          if (typeof modifier.fn !== 'function') {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"fn"', '"function"', "\"" + String(modifier.fn) + "\""));
-          }
-
-          break;
-
-        case 'effect':
-          if (typeof modifier.effect !== 'function') {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"effect"', '"function"', "\"" + String(modifier.fn) + "\""));
-          }
-
-          break;
-
-        case 'requires':
-          if (!Array.isArray(modifier.requires)) {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"requires"', '"array"', "\"" + String(modifier.requires) + "\""));
-          }
-
-          break;
-
-        case 'requiresIfExists':
-          if (!Array.isArray(modifier.requiresIfExists)) {
-            console.error(format(INVALID_MODIFIER_ERROR, modifier.name, '"requiresIfExists"', '"array"', "\"" + String(modifier.requiresIfExists) + "\""));
-          }
-
-          break;
-
-        case 'options':
-        case 'data':
-          break;
-
-        default:
-          console.error("PopperJS: an invalid property has been provided to the \"" + modifier.name + "\" modifier, valid properties are " + VALID_PROPERTIES.map(function (s) {
-            return "\"" + s + "\"";
-          }).join(', ') + "; but \"" + key + "\" was provided.");
-      }
-
-      modifier.requires && modifier.requires.forEach(function (requirement) {
-        if (modifiers.find(function (mod) {
-          return mod.name === requirement;
-        }) == null) {
-          console.error(format(MISSING_DEPENDENCY_ERROR, String(modifier.name), requirement, requirement));
-        }
-      });
-    });
-  });
-}
-
-function uniqueBy(arr, fn) {
-  var identifiers = new Set();
-  return arr.filter(function (item) {
-    var identifier = fn(item);
-
-    if (!identifiers.has(identifier)) {
-      identifiers.add(identifier);
-      return true;
-    }
-  });
-}
-
 function getBasePlacement(placement) {
   return placement.split('-')[0];
 }
@@ -5430,8 +5510,6 @@ function mergeByName(modifiers) {
   });
 }
 
-var INVALID_ELEMENT_ERROR = 'Popper: Invalid reference or popper argument provided. They must be either a DOM element or virtual element.';
-var INFINITE_LOOP_ERROR = 'Popper: An infinite loop in the modifiers cycle has been detected! The cycle has been interrupted to prevent a browser crash.';
 var DEFAULT_OPTIONS = {
   placement: 'bottom',
   modifiers: [],
@@ -5493,40 +5571,6 @@ function popperGenerator(generatorOptions) {
         state.orderedModifiers = orderedModifiers.filter(function (m) {
           return m.enabled;
         }); // Validate the provided modifiers so that the consumer will get warned
-        // if one of the modifiers is invalid for any reason
-
-        if (process.env.NODE_ENV !== "production") {
-          var modifiers = uniqueBy([].concat(orderedModifiers, state.options.modifiers), function (_ref) {
-            var name = _ref.name;
-            return name;
-          });
-          validateModifiers(modifiers);
-
-          if (getBasePlacement(state.options.placement) === auto) {
-            var flipModifier = state.orderedModifiers.find(function (_ref2) {
-              var name = _ref2.name;
-              return name === 'flip';
-            });
-
-            if (!flipModifier) {
-              console.error(['Popper: "auto" placements require the "flip" modifier be', 'present and enabled to work.'].join(' '));
-            }
-          }
-
-          var _getComputedStyle = getComputedStyle(popper),
-              marginTop = _getComputedStyle.marginTop,
-              marginRight = _getComputedStyle.marginRight,
-              marginBottom = _getComputedStyle.marginBottom,
-              marginLeft = _getComputedStyle.marginLeft; // We no longer take into account `margins` on the popper, and it can
-          // cause bugs with positioning, so we'll warn the consumer
-
-
-          if ([marginTop, marginRight, marginBottom, marginLeft].some(function (margin) {
-            return parseFloat(margin);
-          })) {
-            console.warn(['Popper: CSS "margin" styles cannot be used to apply padding', 'between the popper and its reference element or boundary.', 'To replicate margin, use the `offset` modifier, as well as', 'the `padding` option in the `preventOverflow` and `flip`', 'modifiers.'].join(' '));
-          }
-        }
 
         runModifierEffects();
         return instance.update();
@@ -5547,9 +5591,6 @@ function popperGenerator(generatorOptions) {
         // anymore
 
         if (!areValidElements(reference, popper)) {
-          if (process.env.NODE_ENV !== "production") {
-            console.error(INVALID_ELEMENT_ERROR);
-          }
 
           return;
         } // Store the reference and popper rects to be read by modifiers
@@ -5573,17 +5614,8 @@ function popperGenerator(generatorOptions) {
         state.orderedModifiers.forEach(function (modifier) {
           return state.modifiersData[modifier.name] = Object.assign({}, modifier.data);
         });
-        var __debug_loops__ = 0;
 
         for (var index = 0; index < state.orderedModifiers.length; index++) {
-          if (process.env.NODE_ENV !== "production") {
-            __debug_loops__ += 1;
-
-            if (__debug_loops__ > 100) {
-              console.error(INFINITE_LOOP_ERROR);
-              break;
-            }
-          }
 
           if (state.reset === true) {
             state.reset = false;
@@ -5622,9 +5654,6 @@ function popperGenerator(generatorOptions) {
     };
 
     if (!areValidElements(reference, popper)) {
-      if (process.env.NODE_ENV !== "production") {
-        console.error(INVALID_ELEMENT_ERROR);
-      }
 
       return instance;
     }
@@ -5899,17 +5928,6 @@ function computeStyles(_ref3) {
       gpuAcceleration = _options$gpuAccelerat === void 0 ? true : _options$gpuAccelerat,
       _options$adaptive = options.adaptive,
       adaptive = _options$adaptive === void 0 ? true : _options$adaptive;
-
-  if (process.env.NODE_ENV !== "production") {
-    var _getComputedStyle = getComputedStyle(state.elements.popper),
-        transitionProperty = _getComputedStyle.transitionProperty;
-
-    if (adaptive && ['transform', 'top', 'right', 'bottom', 'left'].some(function (property) {
-      return transitionProperty.indexOf(property) >= 0;
-    })) {
-      console.warn(['Popper: Detected CSS transitions on at least one of the following', 'CSS properties: "transform", "top", "right", "bottom", "left".', '\n\n', 'Disable the "computeStyles" modifier\'s `adaptive` option to allow', 'for smooth transitions, or remove these properties from the CSS', 'transition declaration on the popper element if only transitioning', 'opacity or background-color for example.', '\n\n', 'We recommend using the popper element as a wrapper around an inner', 'element that can have any CSS property transitioned for animations.'].join(' '));
-    }
-  }
 
   var commonStyles = {
     placement: getBasePlacement(state.placement),
@@ -6587,9 +6605,6 @@ function effect$2(_ref2) {
   }
 
   if (!contains(state.elements.popper, arrowElement)) {
-    if (process.env.NODE_ENV !== "production") {
-      console.error(['Popper: "arrow" modifier\'s `element` must be a child of the popper', 'element.'].join(' '));
-    }
 
     return;
   }
@@ -6744,7 +6759,7 @@ the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTA
 OF ANY KIND, either express or implied. See the License for the specific language
 governing permissions and limitations under the License.
 */
-const styles$m = css `
+const styles$n = css `
 @keyframes spOverlayFadeIn{0%{opacity:0;transform:var(--sp-overlay-from)}to{opacity:1;transform:translate(0)}}@keyframes spOverlayFadeOut{0%{opacity:1;transform:translate(0)}to{opacity:0;transform:var(--sp-overlay-from)}}:host{z-index:1000;position:absolute}#contents,:host{display:inline-block;pointer-events:none}#contents{animation-duration:var(--spectrum-global-animation-duration-200);animation-timing-function:var(--spectrum-global-animation-ease-out);opacity:1;visibility:visible}:host([data-popper-placement*=top]) #contents{--sp-overlay-from:translateY(var(--spectrum-global-dimension-size-75))}:host([data-popper-placement*=right]) #contents{--sp-overlay-from:translateX(calc(-1*var(--spectrum-global-dimension-size-75)))}:host([data-popper-placement*=bottom]) #contents{--sp-overlay-from:translateY(calc(-1*var(--spectrum-global-dimension-size-75)))}:host([data-popper-placement*=left]) #contents{--sp-overlay-from:translateX(var(--spectrum-global-dimension-size-75))}::slotted(*){position:relative}:host([animating]) ::slotted(*){pointer-events:none}
 `;
 
@@ -6835,7 +6850,7 @@ class ActiveOverlay extends LitElement {
         return !!this.color || !!this.scale;
     }
     static get styles() {
-        return [styles$m];
+        return [styles$n];
     }
     firstUpdated(changedProperties) {
         super.firstUpdated(changedProperties);
@@ -7430,7 +7445,7 @@ class OverlayTrigger extends LitElement {
         this.disabled = false;
     }
     static get styles() {
-        return [styles$l];
+        return [styles$m];
     }
     render() {
         return html `
@@ -7587,9 +7602,9 @@ class DropdownBase extends Focusable {
         return [
             ...super.styles,
             styles$2,
-            styles$e,
+            styles$f,
             styles$b,
-            styles$g,
+            styles$h,
         ];
     }
     get focusElement() {
@@ -7855,7 +7870,7 @@ __decorate([
 ], DropdownBase.prototype, "popover", void 0);
 class Dropdown extends DropdownBase {
     static get styles() {
-        return [...super.styles, styles$f];
+        return [...super.styles, styles$g];
     }
 }
 
@@ -7874,181 +7889,4 @@ governing permissions and limitations under the License.
 if (!customElements.get('sp-dropdown')) {
     customElements.define('sp-dropdown', Dropdown);
 }
-
-/*
-Copyright 2019 Adobe. All rights reserved.
-This file is licensed to you under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License. You may obtain a copy
-of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under
-the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
-OF ANY KIND, either express or implied. See the License for the specific language
-governing permissions and limitations under the License.
-*/
-const styles$n = css `
-:host{box-sizing:border-box;margin:var(--spectrum-popover-padding-y,var(--spectrum-global-dimension-size-50)) 0;padding:0;list-style-type:none;overflow:auto;display:block;background-color:var(--spectrum-selectlist-background-color,var(--spectrum-alias-background-color-transparent));display:inline-block}:host sp-menu{display:block}
-`;
-
-/*
-Copyright 2019 Adobe. All rights reserved.
-This file is licensed to you under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License. You may obtain a copy
-of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under
-the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
-OF ANY KIND, either express or implied. See the License for the specific language
-governing permissions and limitations under the License.
-*/
-/**
- * Spectrum Menu Component
- * @element sp-menu
- *
- */
-class Menu extends LitElement {
-    constructor() {
-        super();
-        this.menuItems = [];
-        this.focusedItemIndex = 0;
-        this.focusInItemIndex = 0;
-        this.handleKeydown = this.handleKeydown.bind(this);
-        this.startListeningToKeyboard = this.startListeningToKeyboard.bind(this);
-        this.stopListeningToKeyboard = this.stopListeningToKeyboard.bind(this);
-        this.onClick = this.onClick.bind(this);
-        this.addEventListener('click', this.onClick);
-        this.addEventListener('focusin', this.startListeningToKeyboard);
-        this.addEventListener('focusout', this.stopListeningToKeyboard);
-    }
-    static get styles() {
-        return [styles$n];
-    }
-    get childRole() {
-        return this.getAttribute('role') === 'menu' ? 'menuitem' : 'option';
-    }
-    focus() {
-        if (this.menuItems.length === 0) {
-            return;
-        }
-        const focusInItem = this.menuItems[this.focusInItemIndex];
-        this.focusedItemIndex = this.focusInItemIndex;
-        focusInItem.focus();
-    }
-    onClick(event) {
-        const path = event.composedPath();
-        const target = path.find((el) => {
-            if (!(el instanceof Element)) {
-                return false;
-            }
-            return el.getAttribute('role') === this.childRole;
-        });
-        if (!target) {
-            return;
-        }
-        this.prepareToCleanUp();
-    }
-    startListeningToKeyboard() {
-        if (this.menuItems.length === 0) {
-            return;
-        }
-        this.addEventListener('keydown', this.handleKeydown);
-    }
-    stopListeningToKeyboard() {
-        this.removeEventListener('keydown', this.handleKeydown);
-    }
-    handleKeydown(event) {
-        const { code } = event;
-        if (code === 'Tab') {
-            this.prepareToCleanUp();
-            return;
-        }
-        if (code !== 'ArrowDown' && code !== 'ArrowUp') {
-            return;
-        }
-        event.preventDefault();
-        const direction = code === 'ArrowDown' ? 1 : -1;
-        this.focusMenuItemByOffset(direction);
-    }
-    focusMenuItemByOffset(offset) {
-        const focusedItem = this.menuItems[this.focusedItemIndex];
-        this.focusedItemIndex =
-            (this.menuItems.length + this.focusedItemIndex + offset) %
-                this.menuItems.length;
-        let itemToFocus = this.menuItems[this.focusedItemIndex];
-        while (itemToFocus.disabled) {
-            this.focusedItemIndex =
-                (this.menuItems.length + this.focusedItemIndex + offset) %
-                    this.menuItems.length;
-            itemToFocus = this.menuItems[this.focusedItemIndex];
-        }
-        itemToFocus.focus();
-        focusedItem.tabIndex = -1;
-    }
-    prepareToCleanUp() {
-        document.addEventListener('focusout', () => {
-            requestAnimationFrame(() => {
-                if (this.querySelector('[selected]')) {
-                    const itemToBlur = this.menuItems[this.focusInItemIndex];
-                    itemToBlur.tabIndex = -1;
-                }
-                this.updateSelectedItemIndex();
-                const itemToFocus = this.menuItems[this.focusInItemIndex];
-                itemToFocus.tabIndex = 0;
-            });
-        }, { once: true });
-    }
-    updateSelectedItemIndex() {
-        let index = this.menuItems.length - 1;
-        let item = this.menuItems[index];
-        while (index && item && !item.selected) {
-            index -= 1;
-            item = this.menuItems[index];
-        }
-        this.focusedItemIndex = index;
-        this.focusInItemIndex = index;
-    }
-    handleSlotchange() {
-        this.menuItems = [
-            ...this.querySelectorAll(`[role="${this.childRole}"]`),
-        ];
-        if (!this.menuItems || this.menuItems.length === 0) {
-            return;
-        }
-        this.updateSelectedItemIndex();
-        const focusInItem = this.menuItems[this.focusInItemIndex];
-        focusInItem.tabIndex = 0;
-    }
-    render() {
-        return html `
-            <slot @slotchange=${this.handleSlotchange}></slot>
-        `;
-    }
-    connectedCallback() {
-        super.connectedCallback();
-        if (!this.hasAttribute('role')) {
-            const queryRoleEvent = new CustomEvent('sp-menu-query-role', {
-                bubbles: true,
-                composed: true,
-                detail: {
-                    role: '',
-                },
-            });
-            this.dispatchEvent(queryRoleEvent);
-            this.setAttribute('role', queryRoleEvent.detail.role || 'menu');
-        }
-    }
-}
-
-/*
-Copyright 2019 Adobe. All rights reserved.
-This file is licensed to you under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License. You may obtain a copy
-of the License at http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software distributed under
-the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR REPRESENTATIONS
-OF ANY KIND, either express or implied. See the License for the specific language
-governing permissions and limitations under the License.
-*/
-customElements.define('sp-menu', Menu);
 //# sourceMappingURL=index.js.map
